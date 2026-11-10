@@ -1,0 +1,161 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  STUDENT
+  INSTRUCTOR
+  ADMIN
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Profile {
+  id String @id @db.Uuid
+  fullName String @map("full_name")
+  role Role @default(STUDENT)
+  createdAt DateTime @default(now()) @map("created_at")
+  courses Course[]
+  enrollments Enrollment[]
+  progresses LessonProgress[]
+  attempts QuizAttempt[]
+  subscriptions PushSubscription[]
+  @@map("profiles")
+}
+
+model Category {
+  id String @id @default(uuid()) @db.Uuid
+  name String @unique
+  slug String @unique
+  courses Course[]
+  @@map("categories")
+}
+
+model Course {
+  id String @id @default(uuid()) @db.Uuid
+  instructorId String @map("instructor_id") @db.Uuid
+  categoryId String @map("category_id") @db.Uuid
+  title String
+  slug String @unique
+  description String
+  level String
+  price Int @default(0)
+  status CourseStatus @default(DRAFT)
+  thumbnailUrl String? @map("thumbnail_url")
+  createdAt DateTime @default(now()) @map("created_at")
+  instructor Profile @relation(fields: [instructorId], references: [id], onDelete: Restrict)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  lessons Lesson[]
+  quizzes Quiz[]
+  enrollments Enrollment[]
+  @@index([status, categoryId])
+  @@map("courses")
+}
+
+model Lesson {
+  id String @id @default(uuid()) @db.Uuid
+  courseId String @map("course_id") @db.Uuid
+  title String
+  position Int
+  contentUrl String? @map("content_url")
+  contentText String? @map("content_text")
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  progresses LessonProgress[]
+  @@unique([courseId, position])
+  @@map("lessons")
+}
+
+model Enrollment {
+  id String @id @default(uuid()) @db.Uuid
+  studentId String @map("student_id") @db.Uuid
+  courseId String @map("course_id") @db.Uuid
+  enrolledAt DateTime @default(now()) @map("enrolled_at")
+  student Profile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  @@unique([studentId, courseId])
+  @@map("enrollments")
+}
+
+model LessonProgress {
+  id String @id @default(uuid()) @db.Uuid
+  studentId String @map("student_id") @db.Uuid
+  lessonId String @map("lesson_id") @db.Uuid
+  completedAt DateTime @default(now()) @map("completed_at")
+  student Profile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  @@unique([studentId, lessonId])
+  @@map("lesson_progress")
+}
+
+model Quiz {
+  id String @id @default(uuid()) @db.Uuid
+  courseId String @map("course_id") @db.Uuid
+  title String
+  questions Json
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  attempts QuizAttempt[]
+  answerKeys QuizAnswer[]
+  @@map("quizzes")
+}
+
+model QuizAnswer {
+  id String @id @default(uuid()) @db.Uuid
+  quizId String @map("quiz_id") @db.Uuid
+  questionIndex Int @map("question_index")
+  correctOption Int @map("correct_option")
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  @@unique([quizId, questionIndex])
+  @@map("quiz_answers")
+}
+
+model QuizAttempt {
+  id String @id @default(uuid()) @db.Uuid
+  studentId String @map("student_id") @db.Uuid
+  quizId String @map("quiz_id") @db.Uuid
+  answers Json
+  score Int
+  submittedAt DateTime @default(now()) @map("submitted_at")
+  student Profile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  @@index([studentId, quizId])
+  @@map("quiz_attempts")
+}
+
+model PushSubscription {
+  id String @id @default(uuid()) @db.Uuid
+  profileId String @map("profile_id") @db.Uuid
+  endpoint String @unique
+  p256dh String
+  auth String
+  createdAt DateTime @default(now()) @map("created_at")
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  @@map("push_subscriptions")
+}
+
+model NotificationJob {
+  id String @id @default(uuid()) @db.Uuid
+  profileId String @map("profile_id") @db.Uuid
+  title String
+  body String
+  url String
+  createdAt DateTime @default(now()) @map("created_at")
+  @@index([createdAt])
+  @@map("notification_jobs")
+}
+
+model RateLimitBucket {
+  bucketKey String @id @map("bucket_key")
+  hitCount Int @default(0) @map("hit_count")
+  resetAt DateTime @map("reset_at") @db.Timestamptz(6)
+  @@map("rate_limit_buckets")
+}
